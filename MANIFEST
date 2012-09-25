@@ -1,0 +1,10 @@
+Scrubber.pm
+MANIFEST
+Makefile.PL
+README
+t/00-load.t
+t/carp.t
+t/core.t
+t/scrub.t
+t/syslog.t
+t/warnings.t
