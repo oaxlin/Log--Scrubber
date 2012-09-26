@@ -19,7 +19,7 @@ BEGIN {
 use Test::More tests => 2;
 use Log::Scrubber qw(:Syslog);
 
-scrub_init( { '\x1b' => '[esc]' } );
+scrubber_init( { '\x1b' => '[esc]' } );
 
 SKIP:
 {
@@ -60,7 +60,8 @@ SKIP:
 
 
 if ( $u_syslog || $s_syslog ) {
-    diag <<EOM
+    diag 'Remember to check your syslog service to make sure it worked.';
+    note <<EOM
 
 This test sends a message to the syslog() service using facility USER
 and priority NOTICE. Please verify in your log file that these lines are 
@@ -79,6 +80,7 @@ If you find the line above without the [esc] marker, this test was not
 succesful in your platform.
 
 EOM
+;
 }
 
 ;
