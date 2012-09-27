@@ -5,7 +5,7 @@
 use Test::More tests => 2;
 use Log::Scrubber;
 
-scrub_init( { '\x1b' => '[esc]' } );
+scrubber_init( { '\x1b' => '[esc]' } );
 
 END { unlink "test.out"; }
 
