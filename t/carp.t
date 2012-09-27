@@ -6,7 +6,7 @@ use Carp qw(cluck carp croak confess);
 use Test::More tests => 4;
 use Log::Scrubber qw(:Carp);	# :all would also work
 
-scrub_init( { '\x1b' => '[esc]' } );
+scrubber_init( { '\x1b' => '[esc]' } );
 
 END { unlink "test.out"; }
 
