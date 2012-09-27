@@ -7,7 +7,7 @@ use warnings;
 use warnings::register;
 use Log::Scrubber;
 
-scrub_init( {
+scrubber_init( {
     '\x1b' => '[esc]',
     '4007000000027' => 'X' x 13,
     '1234' => 'X' x 4,
