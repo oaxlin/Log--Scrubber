@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Test the scrub method
+# Test the scrubber method
 
 BEGIN 
 {
@@ -17,11 +17,11 @@ BEGIN
 };
 
 use Test::More tests => scalar @crap;
-use Log::Scrubber qw(scrub scrub_init);
+use Log::Scrubber qw(scrubber scrubber_init);
 
-scrub_init( { '\x1b' => '[esc]' } );
+scrubber_init( { '\x1b' => '[esc]' } );
 
-my @safe = scrub @crap;
+my @safe = scrubber @crap;
 
 is($safe[0], '[esc]All');
 is($safe[1], 'yo[esc]ur');
