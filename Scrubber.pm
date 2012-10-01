@@ -31,7 +31,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}}; 
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 ###----------------------------------------------------------------###
 
@@ -111,6 +111,8 @@ sub import {
 
     scrubber_add_signal('WARN');
     scrubber_add_signal('DIE');
+    scrubber_add_method('warnings::warn');
+    scrubber_add_method('warnings::warnif');
 
     __PACKAGE__->export_to_level(1, @_);
 }
@@ -136,10 +138,10 @@ sub scrubber_stop  {
 =head1 SYNOPSIS
 
   use Log::Scrubber;             # Override warn() and die() and import scrubber_init()
-  use Log::Scrubber qw(:all);    # Override eveything this module knows
+  use Log::Scrubber qw(:all);    # Override everything this module knows
   use Log::Scrubber qw(:Carp);   # Only override Carp:: methods
   use Log::Scrubber qw(:Syslog); # Only override syslog()
-  use Log::Scrubber qw(scrubber);   # scrubber() for use on your own
+  use Log::Scrubber qw(scrubber);# scrubber() for use on your own
 
   use Log::Scrubber qw(:Syslog :Carp); # Or combine a few
 
@@ -154,13 +156,13 @@ sub scrubber_stop  {
   
 =head1 DESCRIPTION
 
-As required by the PCI Security Standads Counsil, some data is not
+As required by the PCI Security Standards Council, some data is not
 acceptable to send to log files.  Most notably CVV data.  However it
 is simply a matter of time before a developer accidentally (or on purpose)
-logs sensitive data to the error_log, or some other innapropriate location.
+logs sensitive data to the error_log, or some other inappropriate location.
 
 This module is a quick solution for this vulnerability. What it does
-is very simple: It replaces ocurrences of the your sensitive data in the
+is very simple: It replaces occurrences of the your sensitive data in the
 output of any common logging mechanism such as C<use warnings>,
 C<warn>, C<use Carp> and C<die> with an acceptable alternative provided
 by you.
@@ -182,7 +184,7 @@ the last module is C<use>d in your code, to automatically benefit from
 the most common level of protection.
 
 Note: If your using your own $SIG{__WARN__} and $SIG{__DIE__} then you
-must call scrubber_ini() afterward to maintain full protection.
+must call scrubber_init() afterward to maintain full protection.
 
 =cut
 
@@ -194,7 +196,7 @@ sub _scrubber {
     my $msg = $_[0];
     return $_[0] if ref $_[0];
     foreach ( keys %{$_SDATA->{'scrub_data'}}) {
-        $msg =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
+        ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $msg = $_SDATA->{'scrub_data'}{$_}->($_,$msg) : $msg =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
     }
     return $msg;
 }
@@ -312,9 +314,12 @@ sub scrubber_enable_method {
     no strict 'refs';
     foreach my $fullname ( @_ ) {
         my $r_orig = \&$fullname;
+
+	if ($fullname eq 'warnings::warnif') { $r_orig = \&warnings::warn; }
+
         if (! defined $r_orig) { croak "Log::Scrubber Cannot scrub $fullname, method does not exist."; }
         $_SDATA->{'METHOD'}{$fullname}{'old'} = $r_orig;
-        $_SDATA->{'METHOD'}{$fullname}{'scrubber'} = sub { $r_orig->( scrubber @_ ) };
+        $_SDATA->{'METHOD'}{$fullname}{'scrubber'} = sub { @_ = scrubber @_; goto $r_orig };
         *$fullname = $_SDATA->{'METHOD'}{$fullname}{'scrubber'};
     }
 }
@@ -364,51 +369,52 @@ sub scrubber_init {
     return 1;
 }
 
-=pod
-
-=item C<warnings::warn>
-
-=item C<warnings::warnif>
-
-Calls from C<warnings::> are automatically overridden by this module.
-
-=cut
-
-my $clone_warn = \&warnings::warn;
-my $clone_warnif = \&warnings::warn;
-
-*warnings::warn = sub
-{
-    @_ = scrubber @_;
-    goto $clone_warn;
-};
-
-*warnings::warnif = sub
-{
-    @_ = scrubber @_;
-    goto $clone_warnif;
-};
-
 1;
 __END__
 
 =pod
 
-=back
-
 =head2 METHODS
 
 Additional methods created by this package.
 
-  scrubber_init()		- Initialize the scrubber.
-    scrubber_init()		- Use prevous scrubbing values.  Useful to maintain protection if you change $SIG
-    scrubber_init( {		- Remove old scrubber regular expressions and set new ones.
+  scrubber_init()
+    scrubber_init( {		# Initialize the scrubber.
       $ereg1 => $rep1,
       $ereg2 => $rep2,
-      $ereg3 => $rep3,
+      $key   => sub { my ($key,$val) = @_; $val++; return $val; },
+      $key2  => sub { my ($key,$val) = @_; $val =~ s/1/2/; return $val; },
       } )
 
-  @clean = scrubber( @dirty )	- Allows manual use of the scrubber
+  scrubber()
+    @clean = scrubber( @dirty )	# Allows manual use of the scrubber
+
+  scrubber_enabled()
+    if (scrubber_enabled()) { print "Yes it is\n"; }
+
+  scrubber_add_signal
+  scrubber_remove_signal
+    scrubber_add_signal('__WARN__');
+
+  scrubber_add_method
+  scrubber_remove_method
+    scrubber_add_signal('Carp::croak');
+
+  scrubber_add_package
+  scrubber_remove_package
+    scrubber_add_signal('Carp');
+
+=head2 LOCAL SCOPING
+
+The scrubber can be locally modified.
+
+  use Log::Scrubber qw($SCRUBBER);
+  # setup the scrubber
+  {
+    local $SCRUBBER;
+    # modify scrubber as needed
+  }
+  # scrubber is no restored back to what it was
 
 =head2 EXPORT
 
@@ -426,23 +432,9 @@ Many. The methods are exported or overridden according to this
 
   main::syslog()	-	Only exported with :Syslog or :all
 
-  scrubber_init()		-	Only exported with 'scrubber_init' or :Carp or :Syslog or :all
-  scrubber()		-	Only exported with 'scrubber' or :all
-
-=head1 HISTORY
-
-=over 8
-
-=item 0.01
-
-Original version; created based off of source in Safe::Logs written by Luis E. Muñoz
-
-=back
-
-
 =head1 AUTHOR
 
-Luis E. Muñoz <luismunoz@cpan.org>
+Jason Terry <oaxlin@cpan.org>
 
 =head1 SEE ALSO
 
