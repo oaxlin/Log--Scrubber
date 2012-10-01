@@ -16,9 +16,13 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $SCRUBBER);
 
 @ISA = qw(Exporter);
 %EXPORT_TAGS = (
-    Carp    => [ qw(scrubber_init carp croak confess cluck) ],
-    Syslog  => [ qw(scrubber_init syslog) ],
-    all     => [ qw($SCRUBBER scrubber_init scrubber scrubber_enabled) ],
+    Carp    => [ qw(scrubber_init) ],
+    Syslog  => [ qw(scrubber_init) ],
+    all     => [ qw($SCRUBBER scrubber_init scrubber scrubber_enabled
+                scrubber_add_signal scrubber_remove_signal
+                scrubber_add_method scrubber_remove_method
+                scrubber_add_package scrubber_remove_package
+                ) ],
     );
 
 push @{$EXPORT_TAGS{all}}, @{$EXPORT_TAGS{$_}} 
@@ -27,15 +31,22 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}}; 
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 ###----------------------------------------------------------------###
 
-my $_SDATA = {
+my $_SDATA_default = { # the methods/signals will be setup by import below
     'enabled' => 1,
     'SIG' => {},
     'METHOD' => {},
-};
+    };
+
+my $_SDATA = { # will be initialized in import below
+    'enabled' => 1,
+    'SIG' => {},
+    'METHOD' => {},
+    };
+
 tie $SCRUBBER, __PACKAGE__;
 
 sub TIESCALAR {
@@ -51,13 +62,7 @@ sub STORE {
     my ($self, $val) = @_;
     #print ">>>>Calling STORE with (".(defined($val) ? $val : 'undef').")\n";
     if (! defined $val) {
-        my $old_sdata = $_SDATA;
-        $_SDATA = {};
-        foreach my $key ( 'scrub_data', 'SIG', 'METHOD' ) {
-            # make a non-reference copy, so when we go out of scope we get the old values
-            %{$_SDATA->{$key}} = %{$old_sdata->{$key}} if defined $old_sdata->{$key};
-        }
-        $_SDATA->{'enabled'} = $old_sdata->{'enabled'};
+        $_SDATA = _sdata_copy();
     } elsif (ref($val) eq 'HASH') {
         scrubber_stop();
         $_SDATA = $val;
@@ -71,15 +76,42 @@ sub STORE {
 
 ###----------------------------------------------------------------###
 
+sub _sdata_copy { # make a non-reference copy
+    my ($old_sdata) = @_;
+    if ( ! defined $old_sdata ) { $old_sdata = $_SDATA; } # if they didn't specify one, use the current one
+    my $new_SDATA = {};
+    foreach my $key ( 'scrub_data', 'SIG', 'METHOD' ) {
+        %{$new_SDATA->{$key}} = %{$old_sdata->{$key}} if defined $old_sdata->{$key};
+    }
+    $new_SDATA->{'enabled'} = $old_sdata->{'enabled'};
+    $new_SDATA->{'parent'} = $old_sdata;
+    return $new_SDATA;
+}
+
+###----------------------------------------------------------------###
+
 sub import {
     my $change;
     for my $i (reverse 1 .. $#_) {
+        if ($_[$i] eq ':Carp') {
+            scrubber_add_method('Carp::croak');
+            scrubber_add_method('Carp::confess');
+            scrubber_add_method('Carp::carp');
+            scrubber_add_method('Carp::cluck');
+        }
+        if ($_[$i] eq ':Syslog') {
+            scrubber_add_method('main::syslog');
+        }
         next if $_[$i] !~ /^(dis|en)able$/;
         my $val = $1 eq 'dis' ? 0 : 1;
         splice @_, $i, 1, ();
         die 'Cannot both enable and disable $SCRUBBER during import' if defined $change && $change != $val;
         $SCRUBBER = $val;
     }
+
+    scrubber_add_signal('WARN');
+    scrubber_add_signal('DIE');
+
     __PACKAGE__->export_to_level(1, @_);
 }
 
@@ -172,36 +204,6 @@ sub scrubber {
 }
 
 ###----------------------------------------------------------------###
-
-=pod
-
-=over
-
-=item C<warn>
-
-The standard Perl C<warn()>.
-
-=cut
-
-my $_scrubber_warn = sub {
-    @_ = scrubber @_;
-    defined $_SDATA->{'SIG'}{'WARN'} ? $_SDATA->{'SIG'}{'WARN'}->(@_) : CORE::warn(@_);
-};
-
-=pod
-
-=item C<die>
-
-The standard Perl C<die()>.
-
-=cut
-
-my $_scrubber_die = sub {
-    @_ = scrubber @_;
-    defined $_SDATA->{'SIG'}{'DIE'} ? $_SDATA->{'SIG'}{'DIE'}->(@_) : CORE::die(@_);
-};
-
-###----------------------------------------------------------------###
 # Add/Remove text values that will be scrubbed
 
 sub scrubber_remove_scrubber {
@@ -225,18 +227,19 @@ sub scrubber_add_scrubber {
 
 sub scrubber_disable_signal {
     foreach ( @_ ) {
-        if ($_ eq 'WARN') {
-            $SIG{__WARN__} = $_SDATA->{'SIG'}{$_};
-        }
-        if ($_ eq 'DIE') {
-            $SIG{__DIE__} = $_SDATA->{'SIG'}{$_};
+        if (defined $_SDATA->{'SIG'}{$_}{'scrubber'} && defined $SIG{$_} && $SIG{$_} eq $_SDATA->{'SIG'}{$_}{'scrubber'}) {
+            $SIG{$_} = $_SDATA->{'SIG'}{$_}{'old'};
+            $_SDATA->{'SIG'}{$_}{'old'} = undef;
+            $_SDATA->{'SIG'}{$_}{'scrubber'} = undef;
+        } elsif ( defined $_SDATA->{'SIG'}{$_}{'old'} || defined $SIG{$_} ) {
+            carp 'Log::Scrubber cannot disable the '.$_.' signal, it has been overridden somewhere else';
         }
     }
 }
 
 sub scrubber_remove_signal {
-    scrubber_disable_signal(@_);
     foreach ( @_ ) {
+        scrubber_disable_signal($_);
         delete $_SDATA->{'SIG'}{$_};
     }
 }
@@ -244,27 +247,40 @@ sub scrubber_remove_signal {
 sub scrubber_enable_signal {
     return if ! $_SDATA->{'enabled'};
     foreach ( @_ ) {
-        if ($_ eq 'WARN') {
-            $SIG{__WARN__} = $_scrubber_warn;
+	my $sig_name = $_;
+        next if defined $SIG{$sig_name} && defined $_SDATA->{'SIG'}{$sig_name}{'scrubber'} && $SIG{$sig_name} eq $_SDATA->{'SIG'}{$sig_name}{'scrubber'};
+
+        $_SDATA->{'SIG'}{$sig_name}{'old'} = $SIG{$sig_name};
+
+        if ($sig_name eq '__WARN__') {
+            $_SDATA->{'SIG'}{$sig_name}{'scrubber'} = sub {
+                            @_ = scrubber @_;
+                            defined $_SDATA->{'SIG'}{$sig_name}{'old'} ? $_SDATA->{'SIG'}{$sig_name}{'old'}->(@_) : CORE::warn(@_);
+                        };
         }
-        if ($_ eq 'DIE') {
-            $SIG{__DIE__} = $_scrubber_die;
+        if ($sig_name eq '__DIE__') {
+            $_SDATA->{'SIG'}{$sig_name}{'scrubber'} = sub {
+                            @_ = scrubber @_;
+                            defined $_SDATA->{'SIG'}{$sig_name}{'old'} ? $_SDATA->{'SIG'}{$sig_name}{'old'}->(@_) : CORE::die(@_);
+                        };
         }
+
+        $SIG{$sig_name} = $_SDATA->{'SIG'}{$sig_name}{'scrubber'};
     }
 }
 
 sub scrubber_add_signal {
     foreach ( @_ ) {
-        if ($_ eq 'WARN') {
-            next if defined $SIG{__WARN__} && $SIG{__WARN__} eq $_scrubber_warn;
-            $_SDATA->{'SIG'}{$_} = $SIG{__WARN__};
-        }
-        if ($_ eq 'DIE') {
-            next if defined $SIG{__DIE__} && $SIG{__DIE__} eq $_scrubber_die;
-            $_SDATA->{'SIG'}{$_} = $SIG{__DIE__};
-        }
+	my $sig_name = '';
+        if ($_ eq 'WARN') { $sig_name = '__WARN__'; }
+        if ($_ eq '__WARN__') { $sig_name = '__WARN__'; }
+        if ($_ eq 'DIE') { $sig_name = '__DIE__'; }
+        if ($_ eq '__DIE__') { $sig_name = '__DIE__'; }
+
+        next if defined $_SDATA->{'SIG'}{$sig_name};
+        $_SDATA->{'SIG'}{$sig_name} = {};
+        scrubber_enable_signal($sig_name);
     }
-    scrubber_enable_signal(@_);
 }
 
 ###----------------------------------------------------------------###
@@ -273,19 +289,21 @@ sub scrubber_add_signal {
 sub scrubber_disable_method {
     no strict 'refs';
     foreach my $fullname ( @_ ) {
-        my $basename = $fullname;
-        $basename =~ s/^.*:://;
-        *$basename = $_SDATA->{'METHOD'}{$fullname};
+        my $current_method = \&$fullname;
+        if (defined $_SDATA->{'METHOD'}{$fullname}{'scrubber'} && defined $current_method && $current_method eq $_SDATA->{'METHOD'}{$fullname}{'scrubber'}) {
+            *$fullname = $_SDATA->{'METHOD'}{$fullname}{'old'};
+            $_SDATA->{'METHOD'}{$fullname}{'old'} = undef;
+            $_SDATA->{'METHOD'}{$fullname}{'scrubber'} = undef;
+        } elsif ( defined $_SDATA->{'METHOD'}{$fullname}{'old'} || defined $current_method ) {
+            carp 'Log::Scrubber cannot disable the '.$fullname.' method, it has been overridden somewhere else';
+        }
     }
 }
 
 sub scrubber_remove_method {
-    scrubber_disable_method(@_);
-    no strict 'refs';
     foreach my $fullname ( @_ ) {
-        my $basename = $fullname;
-        $basename =~ s/^.*:://;
-	delete $_SDATA->{'METHOD'}{$fullname};
+        scrubber_disable_method($fullname);
+        delete $_SDATA->{'METHOD'}{$fullname};
     }
 }
 
@@ -293,39 +311,42 @@ sub scrubber_enable_method {
     return if ! $_SDATA->{'enabled'};
     no strict 'refs';
     foreach my $fullname ( @_ ) {
-        my $r_orig = $_SDATA->{'METHOD'}{$fullname};
-        my $basename = $fullname;
-        $basename =~ s/^.*:://;
-        *$basename = sub { $r_orig->( scrubber @_ ) };
+        my $r_orig = \&$fullname;
+        if (! defined $r_orig) { croak "Log::Scrubber Cannot scrub $fullname, method does not exist."; }
+        $_SDATA->{'METHOD'}{$fullname}{'old'} = $r_orig;
+        $_SDATA->{'METHOD'}{$fullname}{'scrubber'} = sub { $r_orig->( scrubber @_ ) };
+        *$fullname = $_SDATA->{'METHOD'}{$fullname}{'scrubber'};
     }
 }
 
 sub scrubber_add_method {
-    no strict 'refs';
     foreach my $fullname ( @_ ) {
-        $_SDATA->{'METHOD'}{$fullname} = \&$fullname;
+        next if defined $_SDATA->{'METHOD'}{$fullname};
+        $_SDATA->{'METHOD'}{$fullname} = {};
+        scrubber_enable_method($fullname);
     }
-    scrubber_enable_method(@_);
 }
 
 ###----------------------------------------------------------------###
 # Add/Remove entire packages
 
 sub scrubber_remove_package {
+    no strict 'refs';
     foreach my $package ( @_ ) {
-        my @methods = grep { defined &{$_} } keys %Log::Scrubber::;
-	foreach ( @methods ) {
+        my @methods = grep { defined &{$package.'::'.$_} } keys %{$package.'::'};
+        foreach ( @methods ) {
             scrubber_remove_method($_);
-	}
+        }
     }
 }
 
 sub scrubber_add_package {
+    no strict 'refs';
     foreach my $package ( @_ ) {
-        my @methods = grep { defined &{$_} } keys %Log::Scrubber::;
-	foreach ( @methods ) {
-            scrubber_add_method($_);
-	}
+        my @methods = grep { defined &{$package.'::'.$_} } keys %{$package.'::'};
+        foreach ( @methods ) {
+            scrubber_add_method($package.'::'.$_);
+        }
     }
 }
 
@@ -334,54 +355,14 @@ sub scrubber_add_package {
 
 sub scrubber_init {
     my $x = $_[0];
+    scrubber_stop;
     if (defined $x) {
-	scrubber_stop;
-        $_SDATA = {
-            'SIG' => {},
-            'METHOD' => {},
-            };
+        $_SDATA = _sdata_copy($_SDATA->{'parent'});
         scrubber_add_scrubber(@_);
     }
-    scrubber_add_signal('WARN');
-    scrubber_add_signal('DIE');
     scrubber_start();
     return 1;
 }
-
-=pod
-
-The list of methods or functions that this module replaces are as
-follows.
-
-=item C<Carp::carp>
-
-=item C<Carp::croak>
-
-=item C<Carp::confess>
-
-=item C<Carp::cluck>
-
-All the methods from C<Carp> are overridden by this module.
-
-=cut
-
-scrubber_add_method('Carp::carp');
-scrubber_add_method('Carp::croak');
-scrubber_add_method('Carp::confess');
-scrubber_add_method('Carp::cluck');
-
-=pod
-
-=item C<Sys::Syslog>
-
-=item C<Unix::Syslog>
-
-The known and common C<syslog()> calls are automatically overridden by
-this module.
-
-=cut
-
-scrubber_add_method('main::syslog');
 
 =pod
 
