@@ -30,23 +30,27 @@ sub _setup
 }
 
 my $tests = {
-    "escape --> \x1b\n" => "escape --> [esc]\n",
-    "escape --> 4007000000027\n" => "escape --> XXXXXXXXXXXXX\n",
-    "escape --> 1234\n" => "escape --> XXXX\n",
+    "escape --> \x1b" => "escape --> [esc]",
+    "escape --> 4007000000027" => "escape --> XXXXXXXXXXXXX",
+    "escape --> 1234" => "escape --> XXXX",
 };
 
 foreach my $key ( keys %$tests ) {
     eval { 
         _setup;
-        warnings::warn($key);
+        warnings::warn($key."\n");
     };
 
-    ok(index(_read, $tests->{$key}) != -1, "warnings::warn");
+    my $result = _read;
+    $result =~ s/\n.*$//s;
+    is ($result, $tests->{$key}, "warnings::warn");
 
     eval { 
         _setup;
-        warnings::warnif("void", $key);
+        warnings::warnif("void", $key."\n");
     };
 
-    ok(index(_read, $tests->{$key}) != -1, "warnings::warnif");
+    $result = _read;
+    $result =~ s/\n.*$//s;
+    is ($result, $tests->{$key}, "warnings::warnif");
 }
