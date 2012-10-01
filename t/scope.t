@@ -15,12 +15,12 @@ _my_test('Nothing should be modified','Nothing should be modified');
 $SIG{__WARN__} = sub { (CORE::warn 'w1: '.$_[0]); };
 _my_test('Basic global override no scrubbing','w1: Basic global override no scrubbing');
 
+Log::Scrubber::scrubber_add_scrubber({'Basic'=>'Multiple','override no'=> 'override with'});
+Log::Scrubber::scrubber_add_signal('WARN');
 $SCRUBBER = 1; is(scrubber_enabled(), 1);
-Log::Scrubber::scrubber_init({'Basic'=>'Multiple'});
-Log::Scrubber::scrubber_add_scrubber({'override no'=> 'override with'});
 _my_test('Basic global override no scrubbing','w1: Multiple global override with scrubbing');
 $SCRUBBER = 0; is(scrubber_enabled(), 0);
-_my_test('Basic global override no scrubbing','Basic global override no scrubbing');
+_my_test('Basic global override no scrubbing','w1: Basic global override no scrubbing');
 $SCRUBBER = 1; is(scrubber_enabled(), 1);
 
 for (1) {
@@ -29,14 +29,14 @@ for (1) {
     Log::Scrubber::scrubber_add_scrubber({'global'=> 'local'});
     _my_test('Basic global override no scrubbing','w1: Multiple local override with scrubbing');
     $SCRUBBER = 0; is(scrubber_enabled(), 0);
-    _my_test('Basic global override no scrubbing','Basic global override no scrubbing');
+    _my_test('Basic global override no scrubbing','w1: Basic global override no scrubbing');
     note "LEAVE LOCAL SCOPE\n";
 }
 note "LEFT LOCAL SCOPE\n";
                is(scrubber_enabled(), 1);
 _my_test('Basic global override no scrubbing','w1: Multiple global override with scrubbing');
 $SCRUBBER = 0; is(scrubber_enabled(), 0);
-_my_test('Basic global override no scrubbing','Basic global override no scrubbing');
+_my_test('Basic global override no scrubbing','w1: Basic global override no scrubbing');
 #!/usr/bin/perl
 
 sub _read {
@@ -60,5 +60,5 @@ sub _my_test {
     };
 
     my $result = _read;
-    ok(index($result, $expected_result) != -1, "warn: ".$result);
+    is ($result, $expected_result, "warn: ".$result);
 }
