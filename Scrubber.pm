@@ -31,7 +31,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}}; 
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 ###----------------------------------------------------------------###
 
@@ -194,10 +194,56 @@ must call scrubber_init() afterward to maintain full protection.
 
 sub _scrubber {
     my $msg = $_[0];
-    return $_[0] if ref $_[0];
-    foreach ( keys %{$_SDATA->{'scrub_data'}}) {
-        ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $msg = $_SDATA->{'scrub_data'}{$_}->($_,$msg) : $msg =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
+
+    my @stack = ($msg);
+    my @stack_done = ("$msg");
+    my @data = ();
+    my @hashes = ();
+
+    while ( my $sub_msg = pop @stack ) {
+        push @stack_done, "$sub_msg";
+        if ( ref $sub_msg eq 'ARRAY' ) {
+            foreach my $v ( @{$sub_msg} ) {
+                if (ref $v) {
+                    push @stack, $v unless "$v" ~~ @stack_done;
+                } else {
+                    push @data, \$v;
+                }
+            }
+        } elsif ( ref $sub_msg eq 'HASH' ) {
+            push @hashes, $sub_msg;
+            foreach my $k ( keys %{$sub_msg} ) {
+                if (ref $sub_msg->{$k}) {
+                    push @stack, $sub_msg->{$k} unless "$sub_msg->{$k}" ~~ @stack_done;
+                } else {
+                    push @data, \$sub_msg->{$k};
+                }
+            }
+        } elsif (ref $sub_msg) {
+            return $sub_msg
+        } else {
+            push @data, \$msg;
+        }
     }
+
+    foreach my $sub_msg ( @data ) { 
+        foreach ( keys %{$_SDATA->{'scrub_data'}}) {
+            ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $$sub_msg = $_SDATA->{'scrub_data'}{$_}->($_,$$sub_msg) : $$sub_msg =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
+        }
+    }
+
+    foreach my $hash ( @hashes ) { 
+        foreach my $k ( keys %$hash ) {
+            my $tmp_val = $hash->{$k};
+            my $tmp_key = $k; 
+            foreach ( keys %{$_SDATA->{'scrub_data'}}) {
+                ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $tmp_key = $_SDATA->{'scrub_data'}{$_}->($_,$tmp_key) : $tmp_key =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
+            }
+            delete $_[0]->{$k};
+            $hash->{$tmp_key} = $tmp_val;
+        }
+    }
+
     return $msg;
 }
 
