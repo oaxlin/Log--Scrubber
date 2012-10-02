@@ -60,7 +60,7 @@ SKIP:
 
 
 if ( $u_syslog || $s_syslog ) {
-    diag 'Remember to check your syslog service to make sure it worked.';
+    diag 'Check syslog to verify it worked. (TEST_VERBOSE=1 for details)';
     note <<EOM
 
 This test sends a message to the syslog() service using facility USER
