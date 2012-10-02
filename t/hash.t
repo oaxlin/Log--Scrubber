@@ -1,0 +1,87 @@
+#!/usr/bin/perl
+use warnings;
+
+# Test scope, setup a basic test.
+# Then enter a local scope and add new overrides
+# Then leave scope and make sure it reverts back
+
+use Test::More tests => 6;
+use Log::Scrubber qw($SCRUBBER scrubber_enabled);
+
+BEGIN {
+    require Exporter;
+    eval { require Data::Dumper; $d_dumper = 1 };
+
+    if ($d_dumper) {
+      #Data::Dumper->import(qw(Dumper));
+    }
+};
+
+
+END { unlink "test.out"; }
+
+Log::Scrubber::scrubber_remove_signal('__WARN__');
+Log::Scrubber::scrubber_remove_signal('__DIE__');
+Log::Scrubber::scrubber_remove_method('warnings::warn');
+Log::Scrubber::scrubber_remove_method('warnings::warnif');
+
+my $t = {
+    'abc' => {
+        'x' => {
+            'x' => '123',
+        },
+    },
+    'arr' => [456,789],
+    };
+
+$$t{'arr'}[2] = $$t{'arr'}; # throw in an evil recursion loop
+$$t{'arr'}[3] = $t; # throw in an evil recursion loop
+
+Log::Scrubber::scrubber_add_scrubber({
+    'abc'=> 'agood', # this will run if we are properly overriding hash keys
+    '123'=> '1good', # this will run if we are properly overriding hash values
+    '456'=> '4good', # this will run if we are properly overriding arrays
+    '789'=> '7good', # this will run if we are properly overriding arrays
+    '\'1good'=> '\'1warn', # should not happen until we enable warnings
+    });
+$SCRUBBER = 1; is(scrubber_enabled(), 1);
+
+SKIP: {
+    skip 'Data::Dumper not found', 5 unless $d_dumper;
+
+    Log::Scrubber::scrubber_add_method('Data::Dumper::Dumper');
+    Log::Scrubber::scrubber_add_method('Dumper');
+    _my_test($t,'agood');
+    _my_test($t,'1good');
+    _my_test($t,'4good');
+    _my_test($t,'7good');
+    Log::Scrubber::scrubber_add_signal('__WARN__');
+    _my_test($t,'1warn');
+};
+
+sub _read {
+    open FILE, "test.out";
+    my $ret = join('', <FILE>);
+    close FILE;
+    $ret =~ s/[\s\r\n]+$//;
+    return $ret;
+}
+
+sub _setup {
+    open STDERR, ">test.out";
+    select((select(STDERR), $|++)[0]);
+}
+
+sub _my_test {
+    my ($warn_data,$expected_result) = @_;
+    eval { 
+        _setup;
+        warn Data::Dumper::Dumper $warn_data;
+    };
+
+    my $result = _read;
+    my $quoted = quotemeta $expected_result;
+    like ($result, qr/$quoted/, "warn contains: ".$expected_result);
+}
+
+1;
