@@ -31,7 +31,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}}; 
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 ###----------------------------------------------------------------###
 
@@ -123,14 +123,14 @@ sub scrubber_enabled { $_SDATA->{'enabled'} ? 1 : 0 }
 
 sub scrubber_start {
     $_SDATA->{'enabled'} = 1;
-    scrubber_enable_signal( keys $_SDATA->{'SIG'} );
-    scrubber_enable_method( keys $_SDATA->{'METHOD'} );
+    scrubber_enable_signal( keys %{$_SDATA->{'SIG'}} );
+    scrubber_enable_method( keys %{$_SDATA->{'METHOD'}} );
 }
 
 sub scrubber_stop  {
     $_SDATA->{'enabled'} = 0;
-    scrubber_disable_signal( keys $_SDATA->{'SIG'} );
-    scrubber_disable_method( keys $_SDATA->{'METHOD'} );
+    scrubber_disable_signal( keys %{$_SDATA->{'SIG'}} );
+    scrubber_disable_method( keys %{$_SDATA->{'METHOD'}} );
 }
 
 =pod
@@ -460,7 +460,7 @@ The scrubber can be locally modified.
     local $SCRUBBER;
     # modify scrubber as needed
   }
-  # scrubber is no restored back to what it was
+  # scrubber is now restored back to what it was
 
 =head2 EXPORT
 
