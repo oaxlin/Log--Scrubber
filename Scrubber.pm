@@ -31,7 +31,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}}; 
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.06';
+$VERSION = '0.07';
 
 ###----------------------------------------------------------------###
 
@@ -94,10 +94,10 @@ sub import {
     my $change;
     for my $i (reverse 1 .. $#_) {
         if ($_[$i] eq ':Carp') {
-            scrubber_add_method('Carp::croak');
-            scrubber_add_method('Carp::confess');
-            scrubber_add_method('Carp::carp');
-            scrubber_add_method('Carp::cluck');
+            scrubber_add_method('croak');
+            scrubber_add_method('confess');
+            scrubber_add_method('carp');
+            scrubber_add_method('cluck');
         }
         if ($_[$i] eq ':Syslog') {
             scrubber_add_method('main::syslog');
