@@ -19,19 +19,20 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $SCRUBBER);
     Carp    => [ qw(scrubber_init) ],
     Syslog  => [ qw(scrubber_init) ],
     all     => [ qw($SCRUBBER scrubber_init scrubber scrubber_enabled
+                scrubber_add_scrubber scrubber_remove_scrubber
                 scrubber_add_signal scrubber_remove_signal
                 scrubber_add_method scrubber_remove_method
                 scrubber_add_package scrubber_remove_package
                 ) ],
     );
 
-push @{$EXPORT_TAGS{all}}, @{$EXPORT_TAGS{$_}} 
+push @{$EXPORT_TAGS{all}}, @{$EXPORT_TAGS{$_}}
 for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 
-@EXPORT_OK = @{$EXPORT_TAGS{all}}; 
+@EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.07';
+$VERSION = '0.08';
 
 ###----------------------------------------------------------------###
 
@@ -153,7 +154,7 @@ sub scrubber_stop  {
   Output:
 
     The card number is DELETED.
-  
+
 =head1 DESCRIPTION
 
 As required by the PCI Security Standards Council, some data is not
@@ -226,16 +227,16 @@ sub _scrubber {
         }
     }
 
-    foreach my $sub_msg ( @data ) { 
+    foreach my $sub_msg ( @data ) {
         foreach ( keys %{$_SDATA->{'scrub_data'}}) {
             ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $$sub_msg = $_SDATA->{'scrub_data'}{$_}->($_,$$sub_msg) : $$sub_msg =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
         }
     }
 
-    foreach my $hash ( @hashes ) { 
+    foreach my $hash ( @hashes ) {
         foreach my $k ( keys %$hash ) {
             my $tmp_val = $hash->{$k};
-            my $tmp_key = $k; 
+            my $tmp_key = $k;
             foreach ( keys %{$_SDATA->{'scrub_data'}}) {
                 ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $tmp_key = $_SDATA->{'scrub_data'}{$_}->($_,$tmp_key) : $tmp_key =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
             }
@@ -266,7 +267,10 @@ sub scrubber_remove_scrubber {
 sub scrubber_add_scrubber {
     my $x = $_[0];
     if (defined $x) {
-        foreach ( keys %$x ) { $_SDATA->{'scrub_data'}{$_} = $x->{$_}; }
+        foreach ( keys %$x ) {
+            next if ! defined $_ || $_ eq ''; # scrubbing nothing is VERY bad, ignore empty scrubbers
+            $_SDATA->{'scrub_data'}{$_} = $x->{$_};
+        }
     }
 }
 
@@ -279,7 +283,7 @@ sub scrubber_disable_signal {
             $SIG{$_} = $_SDATA->{'SIG'}{$_}{'old'};
             $_SDATA->{'SIG'}{$_}{'old'} = undef;
             $_SDATA->{'SIG'}{$_}{'scrubber'} = undef;
-        } elsif ( defined $_SDATA->{'SIG'}{$_}{'old'} || defined $SIG{$_} ) {
+        } elsif ( defined $_SDATA->{'SIG'}{$_}{'old'} ) {
             carp 'Log::Scrubber cannot disable the '.$_.' signal, it has been overridden somewhere else';
         }
     }
@@ -295,7 +299,7 @@ sub scrubber_remove_signal {
 sub scrubber_enable_signal {
     return if ! $_SDATA->{'enabled'};
     foreach ( @_ ) {
-	my $sig_name = $_;
+    my $sig_name = $_;
         next if defined $SIG{$sig_name} && defined $_SDATA->{'SIG'}{$sig_name}{'scrubber'} && $SIG{$sig_name} eq $_SDATA->{'SIG'}{$sig_name}{'scrubber'};
 
         $_SDATA->{'SIG'}{$sig_name}{'old'} = $SIG{$sig_name};
@@ -319,7 +323,7 @@ sub scrubber_enable_signal {
 
 sub scrubber_add_signal {
     foreach ( @_ ) {
-	my $sig_name = '';
+    my $sig_name = '';
         if ($_ eq 'WARN') { $sig_name = '__WARN__'; }
         if ($_ eq '__WARN__') { $sig_name = '__WARN__'; }
         if ($_ eq 'DIE') { $sig_name = '__DIE__'; }
@@ -342,7 +346,7 @@ sub scrubber_disable_method {
             *$fullname = $_SDATA->{'METHOD'}{$fullname}{'old'};
             $_SDATA->{'METHOD'}{$fullname}{'old'} = undef;
             $_SDATA->{'METHOD'}{$fullname}{'scrubber'} = undef;
-        } elsif ( defined $_SDATA->{'METHOD'}{$fullname}{'old'} || defined $current_method ) {
+        } elsif ( defined $_SDATA->{'METHOD'}{$fullname}{'old'} ) {
             carp 'Log::Scrubber cannot disable the '.$fullname.' method, it has been overridden somewhere else';
         }
     }
@@ -361,7 +365,7 @@ sub scrubber_enable_method {
     foreach my $fullname ( @_ ) {
         my $r_orig = \&$fullname;
 
-	if ($fullname eq 'warnings::warnif') { $r_orig = \&warnings::warn; }
+    if ($fullname eq 'warnings::warnif') { $r_orig = \&warnings::warn; }
 
         if (! defined $r_orig) { croak "Log::Scrubber Cannot scrub $fullname, method does not exist."; }
         $_SDATA->{'METHOD'}{$fullname}{'old'} = $r_orig;
