@@ -14,6 +14,8 @@ BEGIN {
       Sys::Syslog->import(qw(openlog closelog syslog setlogsock));
     }
 
+    syslog(LOG_NOTICE, "The next ".($s_syslog && $u_syslog ? '2 lines' : 'line' )." should contain the [esc] if Log::Scrubber worked.") if $u_syslog || $s_syslog;
+
 };
 
 use Test::More tests => 2;
@@ -26,7 +28,7 @@ SKIP:
     skip 'No Sys::Syslog found', 1 unless $s_syslog;
     eval {
 	setlogsock('unix');
-	openlog('Scrub::Logs', LOG_PID | LOG_NDELAY, LOG_USER);
+	openlog('Log::Scrubber', LOG_PID | LOG_NDELAY, LOG_USER);
 	syslog(LOG_NOTICE, "This is an escape --> \x1b from Sys::Syslog");
 	closelog;
     };
@@ -44,7 +46,7 @@ SKIP:
 {
     skip 'No Unix::Syslog found', 1 unless $u_syslog;
     eval {
-	openlog('Scrub::Logs', 'pid,ndelay', 'user');
+	openlog('Log::Scrubber', 'pid,ndelay', 'user');
 	syslog('notice', "This is an escape --> \x1b from Unix::Syslog");
 	closelog;
     };
