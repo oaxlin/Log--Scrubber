@@ -103,11 +103,16 @@ sub import {
         if ($_[$i] eq ':Syslog') {
             scrubber_add_method('main::syslog');
         }
-        next if $_[$i] !~ /^(dis|en)able$/;
-        my $val = $1 eq 'dis' ? 0 : 1;
-        splice @_, $i, 1, ();
-        die 'Cannot both enable and disable $SCRUBBER during import' if defined $change && $change != $val;
-        $SCRUBBER = $val;
+        if ($_[$i] =~ /^\+/) {
+            scrubber_add_method(substr($_[$i],1,999));
+            splice @_, $i, 1, ();
+        }
+        if ($_[$i] =~ /^(dis|en)able$/) {
+            my $val = $1 eq 'dis' ? 0 : 1;
+            splice @_, $i, 1, ();
+            die 'Cannot both enable and disable $SCRUBBER during import' if defined $change && $change != $val;
+            $SCRUBBER = $val;
+        }
     }
 
     scrubber_add_signal('WARN');
