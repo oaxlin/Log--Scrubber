@@ -99,15 +99,12 @@ sub import {
             scrubber_add_method('confess');
             scrubber_add_method('carp');
             scrubber_add_method('cluck');
-        }
-        if ($_[$i] eq ':Syslog') {
+        } elsif ($_[$i] eq ':Syslog') {
             scrubber_add_method('main::syslog');
-        }
-        if ($_[$i] =~ /^\+/) {
+        } elsif ($_[$i] =~ /^\+/) {
             scrubber_add_method(substr($_[$i],1,999));
             splice @_, $i, 1, ();
-        }
-        if ($_[$i] =~ /^(dis|en)able$/) {
+        } elsif ($_[$i] =~ /^(dis|en)able$/) {
             my $val = $1 eq 'dis' ? 0 : 1;
             splice @_, $i, 1, ();
             die 'Cannot both enable and disable $SCRUBBER during import' if defined $change && $change != $val;
@@ -226,7 +223,7 @@ sub _scrubber {
                 }
             }
         } elsif (ref $sub_msg) {
-            return $sub_msg
+            # TODO: currently only ARRAY, HASH and SCALAR are supported
         } else {
             push @data, \$msg;
         }
