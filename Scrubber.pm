@@ -32,7 +32,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.08';
+$VERSION = '0.09';
 
 ###----------------------------------------------------------------###
 
@@ -249,6 +249,7 @@ sub _scrubber {
 }
 
 sub scrubber {
+    if ($#_ == 0) { return _scrubber $_[0]; }
     return map { _scrubber $_ } @_;
 }
 
