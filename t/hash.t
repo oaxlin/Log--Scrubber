@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+use strict;
 use warnings;
 
 # Test scope, setup a basic test.
@@ -6,14 +7,14 @@ use warnings;
 # Then leave scope and make sure it reverts back
 
 use Test::More tests => 6;
-use Log::Scrubber qw($SCRUBBER scrubber_enabled);
+use Log::Scrubber qw($SCRUBBER scrubber_enabled scrubber);
 
 BEGIN {
     require Exporter;
-    eval { require Data::Dumper; $d_dumper = 1 };
+    eval { require Data::Dumper; $main::d_dumper = 1 };
 
-    if ($d_dumper) {
-      #Data::Dumper->import(qw(Dumper));
+    if ($main::d_dumper) {
+      Data::Dumper->import(qw(Dumper));
     }
 };
 
@@ -37,17 +38,23 @@ my $t = {
 $$t{'arr'}[2] = $$t{'arr'}; # throw in an evil recursion loop
 $$t{'arr'}[3] = $t; # throw in an evil recursion loop
 
+$$t{'undef'}{'hash'} = undef; # make sure we don't have problems with undefined values
+$$t{'undef'}{'hash2'} = undef;
+$$t{'undef'}{'hash3'} = undef;
+$$t{'undef'}{'arr'} = [0,undef,undef,'101112']; # more undef, and a nested key with an identical name as a root key
+
 Log::Scrubber::scrubber_add_scrubber({
     'abc'=> 'agood', # this will run if we are properly overriding hash keys
     '123'=> '1good', # this will run if we are properly overriding hash values
     '456'=> '4good', # this will run if we are properly overriding arrays
     '789'=> '7good', # this will run if we are properly overriding arrays
+    '101112'=> '10ood', # this will run if we are properly nested hashes with identical names
     '\'1good'=> '\'1warn', # should not happen until we enable warnings
     });
 $SCRUBBER = 1; is(scrubber_enabled(), 1);
 
 SKIP: {
-    skip 'Data::Dumper not found', 5 unless $d_dumper;
+    skip 'Data::Dumper not found', 5 unless $main::d_dumper;
 
     Log::Scrubber::scrubber_add_method('Data::Dumper::Dumper');
     Log::Scrubber::scrubber_add_method('Dumper');

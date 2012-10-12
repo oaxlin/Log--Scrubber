@@ -5,6 +5,9 @@ version 0.10: 2012-10-12 Jason Terry
 
     - do not attempt to scrub undefined values, this avoids warnings about undef
 
+	- fix a bug when scrubbing a hash key, it was deleting the root key... not
+	the nested key.
+
     - update the perldoc
 
 version 0.09: 2012-10-11 Jason Terry

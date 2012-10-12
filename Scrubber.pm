@@ -32,7 +32,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.09';
+$VERSION = '0.10';
 
 ###----------------------------------------------------------------###
 
@@ -200,7 +200,7 @@ sub _scrubber {
     my $msg = $_[0];
 
     my @stack = ($msg);
-    my @stack_done = ("$msg");
+    my @stack_done = ();
     my @data = ();
     my @hashes = ();
 
@@ -231,6 +231,7 @@ sub _scrubber {
     }
 
     foreach my $sub_msg ( @data ) {
+        next if ! defined $$sub_msg;
         foreach ( keys %{$_SDATA->{'scrub_data'}}) {
             ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $$sub_msg = $_SDATA->{'scrub_data'}{$_}->($_,$$sub_msg) : $$sub_msg =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
         }
@@ -243,7 +244,7 @@ sub _scrubber {
             foreach ( keys %{$_SDATA->{'scrub_data'}}) {
                 ref $_SDATA->{'scrub_data'}{$_} eq 'CODE' ? $tmp_key = $_SDATA->{'scrub_data'}{$_}->($_,$tmp_key) : $tmp_key =~ s/$_/$_SDATA->{'scrub_data'}{$_}/g;
             }
-            delete $_[0]->{$k};
+            delete $hash->{$k};
             $hash->{$tmp_key} = $tmp_val;
         }
     }
