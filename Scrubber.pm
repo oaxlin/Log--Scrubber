@@ -1,10 +1,7 @@
 package Log::Scrubber;
 
-=head1 NAME
-
-Log::Scrubber - Perl extension to avoid logging sensitive data
-
-=cut
+# See the bottom of this file for the POD documentation.
+# Search for the string '=head'.
 
 require 5.005;
 use strict;
@@ -32,7 +29,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.10';
+$VERSION = '0.11';
 
 ###----------------------------------------------------------------###
 
@@ -126,71 +123,15 @@ sub scrubber_enabled { $_SDATA->{'enabled'} ? 1 : 0 }
 
 sub scrubber_start {
     $_SDATA->{'enabled'} = 1;
-    scrubber_enable_signal( keys %{$_SDATA->{'SIG'}} );
-    scrubber_enable_method( keys %{$_SDATA->{'METHOD'}} );
+    _scrubber_enable_signal( keys %{$_SDATA->{'SIG'}} );
+    _scrubber_enable_method( keys %{$_SDATA->{'METHOD'}} );
 }
 
 sub scrubber_stop  {
     $_SDATA->{'enabled'} = 0;
-    scrubber_disable_signal( keys %{$_SDATA->{'SIG'}} );
-    scrubber_disable_method( keys %{$_SDATA->{'METHOD'}} );
+    _scrubber_disable_signal( keys %{$_SDATA->{'SIG'}} );
+    _scrubber_disable_method( keys %{$_SDATA->{'METHOD'}} );
 }
-
-=pod
-
-=head1 SYNOPSIS
-
-  use Log::Scrubber;             # Override warn() and die() and import scrubber_init()
-  use Log::Scrubber qw(:all);    # Override everything this module knows
-  use Log::Scrubber qw(:Carp);   # Only override Carp methods
-  use Log::Scrubber qw(:Syslog); # Only override syslog()
-  use Log::Scrubber qw(scrubber);# scrubber() for use on your own
-  use Log::Scrubber qw(+Custom::Method);# Override any perl method
-
-  use Log::Scrubber qw($SCRUBBER :Carp +My::Logs); # Or combine a few
-
-  Example:
-
-    scrubber_init( { '4007000000027' => 'DELETED' } );
-    warn "The card number is 4007000000027.\n";
-
-  Output:
-
-    The card number is DELETED.
-
-=head1 DESCRIPTION
-
-As required by the PCI Security Standards Council, some data is not
-acceptable to send to log files.  Most notably CVV data.  However it
-is simply a matter of time before a developer accidentally (or on purpose)
-logs sensitive data to the error_log, or some other inappropriate location.
-
-This module is a quick solution for this vulnerability. What it does
-is very simple: It replaces occurrences of the your sensitive data in the
-output of any common logging mechanism such as C<use warnings>,
-C<warn>, C<use Carp> and C<die> with an acceptable alternative provided
-by you.
-
-It does so by overriding the functions with a safer alternative so
-that no code needs to be changed.
-
-Note that in order for this protection to be effective, this module
-must be C<use>d as the last module (ie, after all the modules it can
-override) in order for proper method replacement to occur.
-
-The protection can also be invoked by the C<scrubber> method, which
-takes a list of arguments and returns the same list, with all ESC
-characters safely replaced. This method is provided so that you can
-call it by yourself.
-
-Typically, you will want to issue an C<use Log::Scrubber qw(:all)> after
-the last module is C<use>d in your code, to automatically benefit from
-the most common level of protection.
-
-Note: If your using your own $SIG{__WARN__} and $SIG{__DIE__} then you
-must call scrubber_init() afterward to maintain full protection.
-
-=cut
 
 ###----------------------------------------------------------------###
 # This is the core of our protection. Replace
@@ -282,7 +223,7 @@ sub scrubber_add_scrubber {
 ###----------------------------------------------------------------###
 # Add/Remove signals (ie DIE and WARN) to the scrubber
 
-sub scrubber_disable_signal {
+sub _scrubber_disable_signal {
     foreach ( @_ ) {
         if (defined $_SDATA->{'SIG'}{$_}{'scrubber'} && defined $SIG{$_} && $SIG{$_} eq $_SDATA->{'SIG'}{$_}{'scrubber'}) {
             $SIG{$_} = $_SDATA->{'SIG'}{$_}{'old'};
@@ -296,12 +237,12 @@ sub scrubber_disable_signal {
 
 sub scrubber_remove_signal {
     foreach ( @_ ) {
-        scrubber_disable_signal($_);
+        _scrubber_disable_signal($_);
         delete $_SDATA->{'SIG'}{$_};
     }
 }
 
-sub scrubber_enable_signal {
+sub _scrubber_enable_signal {
     return if ! $_SDATA->{'enabled'};
     foreach ( @_ ) {
     my $sig_name = $_;
@@ -336,15 +277,15 @@ sub scrubber_add_signal {
 
         next if defined $_SDATA->{'SIG'}{$sig_name};
         $_SDATA->{'SIG'}{$sig_name} = {};
-        scrubber_enable_signal($sig_name);
+        _scrubber_enable_signal($sig_name);
     }
 }
 
 ###----------------------------------------------------------------###
 # Add/Remove methods to the scrubber
 
-sub scrubber_disable_method {
-    no strict 'refs';
+sub _scrubber_disable_method {
+    no strict 'refs'; ## no critic
     foreach my $fullname ( @_ ) {
         my $current_method = \&$fullname;
         if (defined $_SDATA->{'METHOD'}{$fullname}{'scrubber'} && defined $current_method && $current_method eq $_SDATA->{'METHOD'}{$fullname}{'scrubber'}) {
@@ -359,14 +300,14 @@ sub scrubber_disable_method {
 
 sub scrubber_remove_method {
     foreach my $fullname ( @_ ) {
-        scrubber_disable_method($fullname);
+        _scrubber_disable_method($fullname);
         delete $_SDATA->{'METHOD'}{$fullname};
     }
 }
 
-sub scrubber_enable_method {
+sub _scrubber_enable_method {
     return if ! $_SDATA->{'enabled'};
-    no strict 'refs';
+    no strict 'refs'; ## no critic
     foreach my $fullname ( @_ ) {
         my $r_orig = \&$fullname;
 
@@ -383,7 +324,7 @@ sub scrubber_add_method {
     foreach my $fullname ( @_ ) {
         next if defined $_SDATA->{'METHOD'}{$fullname};
         $_SDATA->{'METHOD'}{$fullname} = {};
-        scrubber_enable_method($fullname);
+        _scrubber_enable_method($fullname);
     }
 }
 
@@ -391,7 +332,7 @@ sub scrubber_add_method {
 # Add/Remove entire packages
 
 sub scrubber_remove_package {
-    no strict 'refs';
+    no strict 'refs'; ## no critic
     foreach my $package ( @_ ) {
         my @methods = grep { defined &{$package.'::'.$_} } keys %{$package.'::'};
         foreach ( @methods ) {
@@ -401,7 +342,7 @@ sub scrubber_remove_package {
 }
 
 sub scrubber_add_package {
-    no strict 'refs';
+    no strict 'refs'; ## no critic
     foreach my $package ( @_ ) {
         my @methods = grep { defined &{$package.'::'.$_} } keys %{$package.'::'};
         foreach ( @methods ) {
@@ -411,7 +352,7 @@ sub scrubber_add_package {
 }
 
 ###----------------------------------------------------------------###
-# Initilize the scrubber.  Wipe out any existing scrubbers/methods if they exist
+# Initilize the scrubber.
 
 sub scrubber_init {
     my $x = $_[0];
@@ -425,40 +366,145 @@ sub scrubber_init {
 }
 
 1;
+
 __END__
 
-=pod
+=head1 NAME
+
+Log::Scrubber - Perl extension to avoid logging sensitive data
+
+=head1 SYNOPSIS
+
+  use Log::Scrubber;             # Override warn() and die() and import scrubber_init()
+  use Log::Scrubber qw(:all);    # Override everything this module knows
+  use Log::Scrubber qw(:Carp);   # Only override Carp methods
+  use Log::Scrubber qw(:Syslog); # Only override syslog()
+  use Log::Scrubber qw(scrubber);# scrubber() for use on your own
+  use Log::Scrubber qw(+Custom::Method);# Override any perl method
+
+  use Log::Scrubber qw($SCRUBBER :Carp +My::Logs); # Or combine a few
+
+  Example:
+
+    use Log::Scrubber;
+    scrubber_init( { '4007000000027' => 'DELETED' } );
+    warn "The card number is 4007000000027.\n";
+
+  Output:
+
+    The card number is DELETED.
+
+=head1 DESCRIPTION
+
+As required by the PCI Security Standards Council, some data is not
+acceptable to send to log files.  Most notably CVV data.  However it
+is simply a matter of time before a developer accidentally (or on purpose)
+logs sensitive data to the error_log, or some other inappropriate location.
+
+This module is a quick solution for this vulnerability. What it does
+is very simple: It replaces occurrences of the your sensitive data in the
+output of any common logging mechanism such as C<use warnings>,
+C<warn>, C<use Carp> and C<die> with an acceptable alternative provided
+by you.
+
+It does so by overriding the functions with a safer alternative so
+that no code needs to be changed.
+
+Note that in order for this protection to be effective, this module
+must be C<use>d as the last module (ie, after all the modules it can
+override) in order for proper method replacement to occur.
+
+The protection can also be invoked by the C<scrubber> method, which
+takes a list of arguments and returns the same list, with all data
+safely replaced. This method is provided so that you can call it by yourself.
+
+Typically, you will want to issue an C<use Log::Scrubber qw(:all)> after
+the last module is C<use>d in your code, to automatically benefit from
+the most common level of protection.
+
+Note: If you are using $SIG{__WARN__} and $SIG{__DIE__} then you
+must call scrubber_init() or set $SCRUBBER=1 afterward to maintain
+full protection.
 
 =head2 METHODS
 
 Additional methods created by this package.
 
-  scrubber_init()
+=over
+
+=item scrubber_init
+
+    Both adds scrubbers to your list, and enables Log::Scrubber
+
     scrubber_init( { # Initialize the scrubber.
-      $ereg1 => $rep1,
+      $ereg1 => $replacementText,
       $ereg2 => $rep2,
       $key1  => sub { my ($key,$val) = @_; $val++; return $val; },
       $key2  => sub { my ($key,$val) = @_; $val =~ s/1/2/; return $val; },
       } )
 
-  scrubber()
-    @clean = scrubber( @dirty ); # Allows manual use of the scrubber
+=item scrubber_start
+
+    Enables scrubbing by overriding all configured methods/signals.
+
+    scrubber_start();
+    # or
+    $SCRUBBER = 1;
+
+=item scrubber_stop
+
+    Disables scrubbing by removing the method/signal overrides.  When disabled your scripts should function exactly as if Log::Scrubber was never installed.
+
+    scrubber_stop();
+    # or
+    $SCRUBBER = 0;
+
+=item scrubber_add_scrubber
+
+    Add a new regular expression, or coderef scrubber.  This follows the same format as init_scrubber()
+
+    scrubber_add_scrubber({$ereg=>$replaceTxt});
+
+=item scrubber_remove_scrubber
+
+    Remove a previously added scrubber.
+
+    scrubber_remove_scrubber({$ereg=>$replaceTxt});
+
+=item scrubber
+
+    Allows manual use of the scrubber
+
+    @clean = scrubber( @dirty );
     $clean = scrubber $clean;
 
-  scrubber_enabled()
-    if (scrubber_enabled()) { print "Yes it is\n"; }
+=item scrubber_enabled
 
-  scrubber_add_signal
-  scrubber_remove_signal
+    if (scrubber_enabled()) { print "Yes it is\n"; }
+    # or
+    if ($SCRUBBER) { print "Yes it is\n"; }
+
+=item scrubber_add_signal
+
+=item scrubber_remove_signal
+
     scrubber_add_signal('__WARN__');
 
-  scrubber_add_method
-  scrubber_remove_method
+=item scrubber_add_method
+
+=item scrubber_remove_method
+
     scrubber_add_method('Carp::croak');
 
-  scrubber_add_package
-  scrubber_remove_package
-    scrubber_add_package('Carp'); # use with caution, it overrides EVERYTHING
+=item scrubber_add_package
+
+=item scrubber_remove_package
+
+    Use with caution, it overrides EVERYTHING in the package.  It's usually a better idea to override your methods with scrubber_add_method.
+
+    scrubber_add_package('Carp');
+
+=back
 
 =head2 LOCAL SCOPING
 
