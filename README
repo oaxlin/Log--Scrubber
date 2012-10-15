@@ -24,15 +24,4 @@ perldoc command.
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2012 Jason Terry
-
-This code comes with no warranty of any kind. The author cannot be
-held liable for anything arising of the use of this code under no
-circumstances.
-
-This program is free software; you can redistribute it and/or modify it
-under the terms of either: the GNU General Public License as published
-by the Free Software Foundation; or the Artistic License.
-
-See http://dev.perl.org/licenses/ for more information.
-
+See the LICENSE file included in this package
