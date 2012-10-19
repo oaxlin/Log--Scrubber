@@ -7,6 +7,7 @@ require 5.005;
 use strict;
 use warnings;
 use Carp;
+use Clone;
 no warnings "redefine"; # We make this a few times
 use Exporter;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $SCRUBBER);
@@ -29,7 +30,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.11';
+$VERSION = '0.12';
 
 ###----------------------------------------------------------------###
 
@@ -194,8 +195,9 @@ sub _scrubber {
 }
 
 sub scrubber {
-    if ($#_ == 0) { return _scrubber $_[0]; }
-    return map { _scrubber $_ } @_;
+    my $copy = Clone::clone(\@_);
+    if ($#$copy == 0) { return _scrubber $$copy[0]; }
+    return map { _scrubber $_ } @$copy;
 }
 
 ###----------------------------------------------------------------###
@@ -401,11 +403,11 @@ acceptable to send to log files.  Most notably CVV data.  However it
 is simply a matter of time before a developer accidentally (or on purpose)
 logs sensitive data to the error_log, or some other inappropriate location.
 
-This module is a quick solution for this vulnerability. What it does
-is very simple: It replaces occurrences of the your sensitive data in the
-output of any common logging mechanism such as C<use warnings>,
-C<warn>, C<use Carp> and C<die> with an acceptable alternative provided
-by you.
+This module is a solution for this vulnerability.  It allows you to create
+a single location for redaction.  What it does is very simple: It replaces
+occurrences of the your sensitive data in the output of any common logging
+mechanism such as C<use warnings>, C<warn>, C<use Carp> and C<die> with an
+acceptable alternative provided by you.
 
 It does so by overriding the functions with a safer alternative so
 that no code needs to be changed.
