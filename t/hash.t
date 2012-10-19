@@ -6,8 +6,8 @@ use warnings;
 # Then enter a local scope and add new overrides
 # Then leave scope and make sure it reverts back
 
-use Test::More tests => 6;
-use Log::Scrubber qw($SCRUBBER scrubber_enabled scrubber);
+use Test::More tests => 14;
+use Log::Scrubber qw(disable $SCRUBBER scrubber_enabled scrubber);
 
 BEGIN {
     require Exporter;
@@ -51,10 +51,15 @@ Log::Scrubber::scrubber_add_scrubber({
     '101112'=> '10ood', # this will run if we are properly nested hashes with identical names
     '\'1good'=> '\'1warn', # should not happen until we enable warnings
     });
-$SCRUBBER = 1; is(scrubber_enabled(), 1);
 
 SKIP: {
     skip 'Data::Dumper not found', 5 unless $main::d_dumper;
+
+    is(scrubber_enabled(), 0,'Scrubber is disabled');
+    _my_test($t,'123'); # make sure we really are disabled
+
+    $SCRUBBER = 1;
+    is(scrubber_enabled(), 1,'Scrubber is enabled');
 
     Log::Scrubber::scrubber_add_method('Data::Dumper::Dumper');
     Log::Scrubber::scrubber_add_method('Dumper');
@@ -64,6 +69,14 @@ SKIP: {
     _my_test($t,'7good');
     Log::Scrubber::scrubber_add_signal('__WARN__');
     _my_test($t,'1warn');
+
+    $SCRUBBER = 0;
+    is(scrubber_enabled(), 0,'Scrubber is disabled');
+    _my_test($t,'abc'); # make sure our original values are all still there
+    _my_test($t,'123');
+    _my_test($t,'456');
+    _my_test($t,'789');
+    _my_test($t,'101112');
 };
 
 sub _read {
