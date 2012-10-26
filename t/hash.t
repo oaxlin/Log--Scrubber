@@ -36,7 +36,7 @@ my $t = {
     };
 
 $$t{'arr'}[2] = $$t{'arr'}; # throw in an evil recursion loop
-$$t{'arr'}[3] = $t; # throw in an evil recursion loop
+$$t{'abc'}{'recursive'} = $t; # throw in an evil recursion loop
 
 $$t{'undef'}{'hash'} = undef; # make sure we don't have problems with undefined values
 $$t{'undef'}{'hash2'} = undef;

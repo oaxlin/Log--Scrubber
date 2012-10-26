@@ -3,7 +3,7 @@ package Log::Scrubber;
 # See the bottom of this file for the POD documentation.
 # Search for the string '=head'.
 
-require 5.005;
+require 5.8.8;
 use strict;
 use warnings;
 use Carp;
@@ -30,7 +30,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.12';
+$VERSION = '0.13';
 
 ###----------------------------------------------------------------###
 
@@ -151,7 +151,9 @@ sub _scrubber {
         if ( ref $sub_msg eq 'ARRAY' ) {
             foreach my $v ( @{$sub_msg} ) {
                 if (ref $v) {
-                    push @stack, $v unless "$v" ~~ @stack_done;
+                    my $found = 0;
+                    foreach (@stack_done) { if ("$v" eq $_) { $found = 1; last; } }
+                    push @stack, $v unless $found;
                 } else {
                     push @data, \$v;
                 }
@@ -160,7 +162,9 @@ sub _scrubber {
             push @hashes, $sub_msg;
             foreach my $k ( keys %{$sub_msg} ) {
                 if (ref $sub_msg->{$k}) {
-                    push @stack, $sub_msg->{$k} unless "$sub_msg->{$k}" ~~ @stack_done;
+                    my $found = 0;
+                    foreach (@stack_done) { if ("$sub_msg->{$k}" eq $_) { $found = 1; last; } }
+                    push @stack, $sub_msg->{$k} unless $found;
                 } else {
                     push @data, \$sub_msg->{$k};
                 }
@@ -255,13 +259,13 @@ sub _scrubber_enable_signal {
         if ($sig_name eq '__WARN__') {
             $_SDATA->{'SIG'}{$sig_name}{'scrubber'} = sub {
                             @_ = scrubber @_;
-                            defined $_SDATA->{'SIG'}{$sig_name}{'old'} ? $_SDATA->{'SIG'}{$sig_name}{'old'}->(@_) : CORE::warn(@_);
+                            defined $_SDATA->{'SIG'}{$sig_name}{'old'} && $_SDATA->{'SIG'}{$sig_name}{'old'} ne '' ? $_SDATA->{'SIG'}{$sig_name}{'old'}->(@_) : CORE::warn(@_);
                         };
         }
         if ($sig_name eq '__DIE__') {
             $_SDATA->{'SIG'}{$sig_name}{'scrubber'} = sub {
                             @_ = scrubber @_;
-                            defined $_SDATA->{'SIG'}{$sig_name}{'old'} ? $_SDATA->{'SIG'}{$sig_name}{'old'}->(@_) : CORE::die(@_);
+                            defined $_SDATA->{'SIG'}{$sig_name}{'old'} && $_SDATA->{'SIG'}{$sig_name}{'old'} ne '' ? $_SDATA->{'SIG'}{$sig_name}{'old'}->(@_) : CORE::die(@_);
                         };
         }
 
@@ -502,7 +506,7 @@ Additional methods created by this package.
 
 =item scrubber_remove_package
 
-    Use with caution, it overrides EVERYTHING in the package.  It's usually a better idea to override your methods with scrubber_add_method.
+    # Use with caution, it overrides EVERYTHING in the package.  It's usually better to override methods with scrubber_add_method.
 
     scrubber_add_package('Carp');
 
