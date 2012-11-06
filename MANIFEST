@@ -1,6 +1,6 @@
 CHANGES
 LICENSE
-Scrubber.pm
+lib/Log/Scrubber.pm
 MANIFEST
 Makefile.PL
 README
