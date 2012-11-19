@@ -34,14 +34,8 @@ $VERSION = '0.14';
 
 ###----------------------------------------------------------------###
 
-my $_SDATA_default = { # the methods/signals will be setup by import below
-    'enabled' => 1,
-    'SIG' => {},
-    'METHOD' => {},
-    };
-
 my $_SDATA = { # will be initialized in import below
-    'enabled' => 1,
+    'enabled' => 0,
     'SIG' => {},
     'METHOD' => {},
     };
@@ -78,11 +72,7 @@ sub STORE {
 sub _sdata_copy { # make a non-reference copy
     my ($old_sdata) = @_;
     if ( ! defined $old_sdata ) { $old_sdata = $_SDATA; } # if they didn't specify one, use the current one
-    my $new_SDATA = {};
-    foreach my $key ( 'scrub_data', 'SIG', 'METHOD' ) {
-        %{$new_SDATA->{$key}} = %{$old_sdata->{$key}} if defined $old_sdata->{$key};
-    }
-    $new_SDATA->{'enabled'} = $old_sdata->{'enabled'};
+    my $new_SDATA = Clone::clone($old_sdata);
     $new_SDATA->{'parent'} = $old_sdata;
     return $new_SDATA;
 }
@@ -106,7 +96,7 @@ sub import {
             my $val = $1 eq 'dis' ? 0 : 1;
             splice @_, $i, 1, ();
             die 'Cannot both enable and disable $SCRUBBER during import' if defined $change && $change != $val;
-            $SCRUBBER = $val;
+            $change = $val;
         }
     }
 
@@ -114,6 +104,11 @@ sub import {
     scrubber_add_signal('DIE');
     scrubber_add_method('warnings::warn');
     scrubber_add_method('warnings::warnif');
+    if ((! defined $change) || $change) {
+        scrubber_start();
+    } else {
+        scrubber_stop();
+    }
 
     __PACKAGE__->export_to_level(1, @_);
 }
