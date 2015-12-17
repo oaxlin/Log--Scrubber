@@ -30,7 +30,7 @@ for grep { $_ ne 'all' } keys %EXPORT_TAGS;
 @EXPORT_OK = @{$EXPORT_TAGS{all}};
 @EXPORT = qw(scrubber_init);
 
-$VERSION = '0.14';
+$VERSION = '0.15';
 
 ###----------------------------------------------------------------###
 

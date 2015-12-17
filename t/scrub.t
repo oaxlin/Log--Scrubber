@@ -48,7 +48,7 @@ is(ref $safe[9], 'CODE');
 is(ref $safe[10], 'REF');
 is(ref $safe[11], 'LVALUE');
 like(ref $safe[12], qr/^IO::/, 'IO');
-is(ref $safe[13], 'VSTRING');
+like(ref $safe[13], qr/VSTRING|SCALAR/, 'SCALAR');
 is(ref $safe[14], 'Regexp');
 is(ref $safe[15], 'SCALAR');
 
