@@ -61,7 +61,6 @@ subtest "Deep recursion check" => sub {
         # but we are testing just in case someone actually does something like this
         _setup;
         local $SCRUBBER = 1;
-        diag "$SIG{__DIE__}";
         my $old_warn = $SIG{'__DIE__'};
         local $SIG{'__DIE__'} = sub {
             # simulate overriding warn with some other service/tool
@@ -69,7 +68,6 @@ subtest "Deep recursion check" => sub {
             $x = '$'.$x;
             $old_warn->($x,@_);
         };
-        diag "$SIG{__DIE__}";
         Log::Scrubber::scrubber_remove_signal('__DIE__');
         { # new scope
             local $SCRUBBER = 1;
@@ -81,7 +79,6 @@ subtest "Deep recursion check" => sub {
                 $x = '$'.$x;
                 $old_warn->($x,@_);
             };
-            diag "$SIG{__DIE__}";
             Log::Scrubber::scrubber_remove_signal('__DIE__');
             { # new scope
                 local $SCRUBBER = 1;
