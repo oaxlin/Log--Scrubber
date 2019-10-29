@@ -8,32 +8,25 @@ perl:
    - '5.26'
    - '5.24'
    - '5.22'
-   - '5.20'
-   - '5.18'
-   - '5.16'
-   - '5.14'
-   - '5.12'
-   - '5.10'
-   - '5.8'
 matrix:
   fast_finish: true
   allow_failures:
     - perl: 'blead'
     - perl: '5.8'
   include:
-    - perl: 5.20
+    - perl: '5.20'
       dist: trusty
-    - perl: 5.18
+    - perl: '5.18'
       dist: trusty
-    - perl: 5.16
+    - perl: '5.16'
       dist: trusty
-    - perl: 5.14
+    - perl: '5.14'
       dist: trusty
-    - perl: 5.12
+    - perl: '5.12'
       dist: trusty
-    - perl: 5.10
+    - perl: '5.10'
       dist: trusty
-    - perl: 5.8
+    - perl: '5.8'
       dist: trusty
 before_install:
    - git config --global user.name "TravisCI"
